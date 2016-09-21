@@ -1,0 +1,12 @@
+[Unit]
+Description=Reflect changes in the IP of available nameserver in the client CellServDB of OpenAFS
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/openafs-client-updater -foreground
+Restart=on-failure
+RestartSec=15s
+
+[Install]
+WantedBy=multi-user.target
+# might avoid `Service hold-off time over, scheduling restart.`<ref>http://unix.stackexchange.com/questions/213185/restarting-systemd-service-on-dependency-failure</ref>

@@ -1,0 +1,5 @@
+.eggs/
+*.pyc
+openafs_client_updater.egg-info/
+build/
+dist/
