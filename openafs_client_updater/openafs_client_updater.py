@@ -34,6 +34,7 @@ import re
 import logging
 import time
 import os
+import configparser
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -51,7 +52,7 @@ systemctl = "systemctl"
     oneshot=("A flag indicating that the process ought not run in a loop, but exit after one run", "flag"),
     interval=("The interval in seconds between two check (ignored if oneshot is specified)", "option"),
 )
-def openafs_client_updater(hostname="richtercloud.de", foreground=False, oneshot=False, interval=2*60, log_dir="/var/log/openafs-client-updater", log_file_name="openafs-client-updater.log"):
+def openafs_client_updater(hostname=None, foreground=False, oneshot=False, interval=2*60, log_dir="/var/log/openafs-client-updater", log_file_name="openafs-client-updater.log", config_file_path="/etc/openafs-client-updater.conf"):
     if not os.path.exists(log_dir):
         logger.debug("Creating inexisting log directory '%s'" % (log_dir,))
         os.makedirs(log_dir)
@@ -60,7 +61,17 @@ def openafs_client_updater(hostname="richtercloud.de", foreground=False, oneshot
     logger_file_handler = logging.FileHandler(filename=os.path.join(log_dir, log_file_name), mode='a', encoding=None, delay=False)
     logger_file_handler.setFormatter(logger_formatter)
     logger.addHandler(logger_file_handler)
-
+    if hostname is None:
+        logger.debug("reading hostname from configuration file '%s'" % (config_file_path,))
+        config = configparser.ConfigParser(allow_no_value=True)
+        if not os.path.exists(config_file_path):
+            raise RuntimeError("configuration file '%s' doesn't exist and hostname isn't specified on command line, can't proceed" % (config_file_path,))
+        config.read(config_file_path)
+        hostnames = config.items("hostnames")
+        if len(hostnames) > 1:
+            raise ValueError("more than one hostname isn't supported (yet)")
+        hostname = hostnames[0][0] # `configparser.ConfigParser.items` returns a list of tuples with key and value
+        logger.debug("hostname is '%s'" % (hostname,))
     def __check__():
         ip = socket.gethostbyname(hostname)
         cellservdb_file_path = "/etc/openafs/CellServDB"
@@ -136,4 +147,7 @@ def main():
     plac.call(openafs_client_updater)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except:
+        logger.exception()
