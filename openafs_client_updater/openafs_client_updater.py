@@ -33,6 +33,7 @@ import socket
 import re
 import logging
 import time
+import os
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,13 +43,15 @@ logger_formatter = logging.Formatter('%(asctime)s:%(message)s')
 logger_stdout_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stdout_handler)
 
+# binaries
+systemctl = "systemctl"
+
 @plac.annotations(hostname=("The hostname to base the query on", "positional"),
     foreground=("A flag indicating that the process ought to run in the foreground instead of being forked (ignored if oneshot is specified)", "flag"),
     oneshot=("A flag indicating that the process ought not run in a loop, but exit after one run", "flag"),
     interval=("The interval in seconds between two check (ignored if oneshot is specified)", "option"),
 )
 def openafs_client_updater(hostname="richtercloud.de", foreground=False, oneshot=False, interval=2*60, log_dir="/var/log/openafs-client-updater", log_file_name="openafs-client-updater.log"):
-    print (log_dir)
     if not os.path.exists(log_dir):
         logger.debug("Creating inexisting log directory '%s'" % (log_dir,))
         os.makedirs(log_dir)
@@ -66,6 +69,9 @@ def openafs_client_updater(hostname="richtercloud.de", foreground=False, oneshot
         cellservdb_dict = parse_cellservdb_file(cellservdb_file_lines)
         if not hostname in cellservdb_dict:
             raise ValueError("The hostname '%s' isn't present in CellServDB '%s'" % (hostname, cellservdb_file_path))
+        if len(cellservdb_dict[hostname]) > 5:
+            # avoid `Too many hosts for cell [cell] in configuration file /etc/openafs/CellServDB` (maximum of entries unclear, must doesn't need to be specified)
+            cellservdb_dict[hostname] = []
         if not ip in cellservdb_dict[hostname]:
             cellservdb_dict[hostname].append(ip)
             logger.info("adding missing IP '%s'" % (ip,))
@@ -76,6 +82,11 @@ def openafs_client_updater(hostname="richtercloud.de", foreground=False, oneshot
             cellservdb_file.writelines(cellservdb_file_lines)
             cellservdb_file.flush()
             cellservdb_file.close()
+            system_unit_name = "openafs-client.service"
+            logger.info("restarting OpenAFS client systemd unit '%s'" % (system_unit_name,))
+            # it's not sufficient to run `systemctl restart`, but necessary to run separate stop and start actions (most likely a bug)
+            sp.check_call([systemctl, "stop", system_unit_name])
+            sp.check_call([systemctl, "start", system_unit_name])
     if oneshot:
         __check__()
         return
@@ -103,6 +114,7 @@ def create_cellservdb_lines(cellservdb_dict):
     return ret_value
 
 def parse_cellservdb_file(cellservdb_file_lines):
+    """Creates and returns a dict mapping hostnames to IPs."""
     ret_value = dict()
     hostname = None
     for line in cellservdb_file_lines:
