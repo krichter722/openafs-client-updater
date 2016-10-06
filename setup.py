@@ -78,7 +78,7 @@ setup(
     version_command = ("git describe --tags", "pep440-git-local"),
     packages = find_packages(),
     setup_requires = ["setuptools-version-command"],
-    install_requires = ["cheetah", "plac>=0.9.1", "beautifulsoup4", "python-essentials", "template-helper", "setuptools-git", "conf-globals"],
+    install_requires = ["plac>=0.9.1", "configparser"],
     entry_points={
         'console_scripts': [
             '%s = openafs_client_updater.openafs_client_updater:main' % (openafs_client_updater_globals.app_name, ),
