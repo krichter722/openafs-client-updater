@@ -34,6 +34,13 @@ from pkg_resources import parse_version
 import openafs_client_updater.openafs_client_updater_globals as openafs_client_updater_globals
 import subprocess as sp
 import shutil
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+logger.addHandler(ch)
 
 # binaries
 systemctl = "systemctl"
@@ -41,7 +48,7 @@ systemctl = "systemctl"
 class SystemdServiceInstallCommand(Command):
     """setuptools Command"""
     description = "Create a systemd unit"
-    user_options = tuple()
+    user_options = []
 
     def initialize_options(self):
         """init options"""
@@ -54,12 +61,6 @@ class SystemdServiceInstallCommand(Command):
     def run(self):
         """runner"""
         logger.debug("running systemd service installation post-install hook")
-        systemd_service_install()
-
-class InstallOverwrite(install):
-    def  run(self):
-        install.run(self)
-        # unclear how to initialize setuptools.Command (reported as https://bitbucket.org/pypa/setuptools/issues/423/document-setuptoolscommand__init__) -> use function
         systemd_service_install()
 
 def systemd_service_install():
@@ -84,6 +85,6 @@ setup(
             '%s = openafs_client_updater.openafs_client_updater:main' % (openafs_client_updater_globals.app_name, ),
         ],
     },
-    cmdclass = {'systemd_service':SystemdServiceInstallCommand, 'install': InstallOverwrite},
+    cmdclass = {'systemd_service':SystemdServiceInstallCommand},
     test_suite="tests",
 )
