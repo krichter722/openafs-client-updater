@@ -44,15 +44,29 @@ logger_formatter = logging.Formatter('%(asctime)s:%(message)s')
 logger_stdout_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stdout_handler)
 
+ip_service_dig = "dig"
+ip_service_ipecho = "ipecho"
+ip_service_default = ip_service_dig
+
 # binaries
 systemctl = "systemctl"
+
+__ip_service_docstring__ = "Whether to use DNS name resolution or an external IP echo service to detect changes to DDNS IP. The choice impacts the shortness of intervals (DNS queries can performed more frequently than IP echo service queries because you get blocked for the latter if requests are sent too often) and the possibility to have a LAN (you might want to resolve a server name to a LAN IP inside the LAN rather than its WAN IP, i.e. you need an IP echo service)"
 
 @plac.annotations(hostname=("The hostname to base the query on", "positional"),
     foreground=("A flag indicating that the process ought to run in the foreground instead of being forked (ignored if oneshot is specified)", "flag"),
     oneshot=("A flag indicating that the process ought not run in a loop, but exit after one run", "flag"),
     interval=("The interval in seconds between two check (ignored if oneshot is specified)", "option"),
+    ip_service=(__ip_service_docstring__, "option"),
 )
-def openafs_client_updater(hostname=None, foreground=False, oneshot=False, interval=2*60, log_dir="/var/log/openafs-client-updater", log_file_name="openafs-client-updater.log", config_file_path="/etc/openafs-client-updater.conf"):
+def openafs_client_updater(hostname=None,
+    foreground=False,
+    oneshot=False,
+    interval=2*60,
+    log_dir="/var/log/openafs-client-updater",
+    log_file_name="openafs-client-updater.log",
+    config_file_path="/etc/openafs-client-updater.conf",
+    ip_service=ip_service_default):
     if not os.path.exists(log_dir):
         logger.debug("Creating inexisting log directory '%s'" % (log_dir,))
         os.makedirs(log_dir)
@@ -73,7 +87,16 @@ def openafs_client_updater(hostname=None, foreground=False, oneshot=False, inter
         hostname = hostnames[0][0] # `configparser.ConfigParser.items` returns a list of tuples with key and value
         logger.debug("hostname is '%s'" % (hostname,))
     def __check__():
-        ip = socket.gethostbyname(hostname)
+        if ip_service == ip_service_dig:
+            logger.debug("checking external IP with DNS resolution")
+            ip = socket.gethostbyname(hostname)
+        elif ip_service == ip_service_ipecho:
+            echo_url = "http://ipecho.net/plain"
+            logger.debug("checking external IP at '%s'" % (echo_url,))
+            dyndns_response = urllib2.urlopen(echo_url).readline().strip()
+            ip = dyndns_response
+        else:
+            raise ValueError("IP service '%s' not supported" % (ip_service,))
         cellservdb_file_path = "/etc/openafs/CellServDB"
         cellservdb_file = open(cellservdb_file_path, "r")
         cellservdb_file_lines = cellservdb_file.readlines()
