@@ -48,6 +48,10 @@ ip_service_dig = "dig"
 ip_service_ipecho = "ipecho"
 ip_service_default = ip_service_dig
 
+interval_default_dig = 30
+interval_default_ipecho = 2*60
+interval_default = None
+
 # binaries
 systemctl = "systemctl"
 
@@ -56,13 +60,13 @@ __ip_service_docstring__ = "Whether to use DNS name resolution or an external IP
 @plac.annotations(hostname=("The hostname to base the query on", "positional"),
     foreground=("A flag indicating that the process ought to run in the foreground instead of being forked (ignored if oneshot is specified)", "flag"),
     oneshot=("A flag indicating that the process ought not run in a loop, but exit after one run", "flag"),
-    interval=("The interval in seconds between two check (ignored if oneshot is specified)", "option"),
+    interval=("The interval in seconds between two check (ignored if oneshot is specified) (None indicates that a default for the IP service ought to be chosen)", "option"),
     ip_service=(__ip_service_docstring__, "option"),
 )
 def openafs_client_updater(hostname=None,
     foreground=False,
     oneshot=False,
-    interval=2*60,
+    interval=interval_default,
     log_dir="/var/log/openafs-client-updater",
     log_file_name="openafs-client-updater.log",
     config_file_path="/etc/openafs-client-updater.conf",
@@ -75,6 +79,14 @@ def openafs_client_updater(hostname=None,
     logger_file_handler = logging.FileHandler(filename=os.path.join(log_dir, log_file_name), mode='a', encoding=None, delay=False)
     logger_file_handler.setFormatter(logger_formatter)
     logger.addHandler(logger_file_handler)
+    if interval is None:
+        if ip_service == ip_service_dig:
+            interval = interval_default_dig
+        elif ip_service == ip_service_ipecho:
+            interval = interval_default_ipecho
+        else:
+            raise ValueError("IP service '%s' isn't supported" % (self.ip_service,))
+        logger.debug("using interval '%s'" % (str(interval),))
     if hostname is None:
         logger.debug("reading hostname from configuration file '%s'" % (config_file_path,))
         config = configparser.ConfigParser(allow_no_value=True)
